@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>    <meta charset="UTF-8">
+    <title>Emotion Detection - Upload Image</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon/favicon.svg') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        #imagePreview {
+            max-width: 100%;
+            height: auto;
+            margin: 1rem 0;
+        }
+        
+        #faceCount {
+            display: block;
+            font-size: 1rem;
+            margin-top: 0.5rem;
+            color: var(--text-color);
+        }
+        
+        @media (max-width: 768px) {
+            .upload-container {
+                padding: 1rem;
+            }
+            
+            #dropArea {
+                min-height: 150px;
+            }
+            
+            #imagePreview {
+                max-height: 300px;
+                object-fit: contain;
+            }
+        }
+    </style>
+</head>
+<body class="upload-mode">    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container">            <a class="navbar-brand" href="/">
+                <span class="title-emoji">🎭</span>
+                <span class="gradient-text">Emotion Detection</span>
+            </a>
+            <button class="btn btn-glass btn-glass-primary" onclick="window.location.href='/'">
+                <i class="fas fa-arrow-left me-2"></i>Back to Home
+            </button>
+        </div>
+    </nav><div class="container main-container_1">
+        <div class="row justify-content-center">            <!-- Upload Section -->            <div class="col-lg-10">                <div class="card mode-card upload-card p-4 mb-4 animate-fade-in">
+                    <div class="text-center mb-4">
+                        <div class="mode-icon">
+                            <i class="fas fa-cloud-upload-alt text-white"></i>
+                        </div>
+                        <h4 class="text-white fw-bold">Upload an Image</h4>
+                        <p class="text-white opacity-90">Select a clear photo of a face for best results</p>
+                    </div>
+                    <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+                <div class="upload-area text-center" id="dropArea">                            <label for="imageInput" class="d-block cursor-pointer">                                <i class="fas fa-image fa-3x mb-3 text-white"></i>
+                                <h5 class="text-white">Click or drag to upload</h5>
+                                <span class="text-white opacity-85">Click to choose an image</span>
+                            </label>
+                            <input type="file" id="imageInput" name="image" class="form-control d-none" required 
+                                accept="image/*" onchange="showFileName(this)">                            <p id="fileName" class="mb-0 mt-2 text-white opacity-75 small"></p>
+                        </div>                        <div class="mt-4">
+                            <h5 class="text-white mb-3">Select Model</h5>
+                            <div class="model-selection">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="model-option" data-value="v5" onclick="selectModel(this)">
+                                            <i class="fas fa-brain mb-2"></i>
+                                            <h6>Emotion Model V5</h6>
+                                            <p class="small opacity-75">Latest version with improved accuracy</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="model-option" data-value="fer2013" onclick="selectModel(this)">
+                                            <i class="fas fa-microchip mb-2"></i>
+                                            <h6>FER2013 Model</h6>
+                                            <p class="small opacity-75">Trained on FER2013 dataset</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="modelSelect" name="model" value="v5">
+                        </div>
+                        <style>
+                            .model-selection .model-option {
+                                background: rgba(255, 255, 255, 0.05);
+                                border: 2px solid rgba(255, 255, 255, 0.1);
+                                padding: 1.5rem;
+                                border-radius: 10px;
+                                text-align: center;
+                                cursor: pointer;
+                                transition: all 0.3s ease;
+                                height: 100%;
+                            }
+                            
+                            .model-selection .model-option:hover {
+                                background: rgba(255, 255, 255, 0.1);
+                                transform: translateY(-2px);
+                            }
+                            
+                            .model-selection .model-option.selected {
+                                border-color: #4a90e2;
+                                background: rgba(74, 144, 226, 0.1);
+                            }
+                            
+                            .model-selection .model-option i {
+                                font-size: 2rem;
+                                color: #4a90e2;
+                            }
+                            
+                            .model-selection .model-option h6 {
+                                color: white;
+                                margin: 0.5rem 0;
+                            }
+                            
+                            .model-selection .model-option p {
+                                color: rgba(255, 255, 255, 0.7);
+                                margin: 0;
+                            }
+                        </style>
+                        <div class="d-grid mt-3">                            <button type="submit" class="btn btn-mode-primary btn-outline-primary btn-lg">
+                                <i class="fas fa-magic me-2"></i>Detect Emotions
+                            </button>
+                        </div>
+                    </form>                    <div id="currentPrediction" class="results-section mt-4 animate-fade-in" style="display: none;">                        <div class="emotion-result text-center">
+                            <i class="fas fa-check-circle text-primary fs-1 mb-3"></i>
+                            <h5 class="text-primary fw-bold">Detected Faces: <span id="faceCount"></span></h5>
+                            <div class="position-relative">
+                                <canvas id="previewCanvas" class="preview-img mt-3 mb-4"></canvas>
+                            </div>
+                        </div>
+
+                        <div id="facesResults" class="mt-4">
+                            <!-- Face results will be dynamically added here -->
+                        </div>
+                    </div></div>            </div>            </div>
+            
+            <!-- History Section -->
+            <div class="row justify-content-center mt-5">                <div class="col-lg-10"><div class="card p-4 mb-4 animate-fade-in">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-history text-white me-2"></i>
+                                <h5 class="fw-bold mb-0">Predictions History</h5>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm" onclick="clearHistory()">
+                                <i class="fas fa-trash-alt me-1"></i>Clear History
+                            </button>
+                        </div>
+                        <div id="history-container" class="history-entries"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="text-center mt-3">
+            <p class="footer-text">
+                <span class="gradient-text-subtle">Developed by Me</span>
+                <span>✨</span>
+            </p>
+        </div>
+    </div>    <script>        // Handle model selection
+        function selectModel(element) {
+            // Remove selected class from all options
+            document.querySelectorAll('.model-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked option
+            element.classList.add('selected');
+            
+            // Update hidden input value
+            document.getElementById('modelSelect').value = element.dataset.value;
+        }
+
+        // Get model from URL parameters and set initial selection
+        const urlParams = new URLSearchParams(window.location.search);
+        const modelParam = urlParams.get('model') || 'v5';
+        const selectedOption = document.querySelector(`.model-option[data-value="${modelParam}"]`);
+        if (selectedOption) {
+            selectModel(selectedOption);
+        }
+        
+        // Initialize predictions array from localStorage
+        let predictions = JSON.parse(localStorage.getItem('uploadPredictions') || '[]');
+
+        // Clear history function
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all prediction history?')) {
+                predictions = [];
+                savePredictions();
+                loadPredictionHistory();
+            }
+        }
+
+        // Load existing predictions when page loads
+        window.onload = function() {
+            loadPredictionHistory();
+        };
+
+        function savePredictions() {
+            localStorage.setItem('uploadPredictions', JSON.stringify(predictions));
+        }        function loadPredictionHistory() {
+            const historyContainer = document.getElementById('history-container');
+            historyContainer.innerHTML = '';
+            
+            predictions.forEach((pred, index) => {
+                createPredictionEntry(pred, index);
+            });
+        }
+
+        function formatTimestamp() {
+            const now = new Date();
+            return now.toLocaleTimeString();
+        }        function deletePrediction(index) {
+            predictions.splice(index, 1);
+            savePredictions();
+            loadPredictionHistory();
+        }
+
+        function createPredictionEntry(predData, index) {
+            const historyContainer = document.getElementById('history-container');
+            
+            const predictionEntry = document.createElement('div');
+            predictionEntry.className = 'prediction-entry animate-fade-in';
+              // Create prediction content
+            predictionEntry.innerHTML = `
+                <div class="prediction-image">
+                    <canvas class="history-canvas"></canvas>
+                </div>                <div class="prediction-details">
+                    <div class="prediction-meta">
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                            <div>
+                                <h6 class="mb-0 text-success">${predData.predictions.length} ${predData.predictions.length === 1 ? 'face' : 'faces'} detected</h6>
+                                <span class="timestamp">${predData.timestamp}</span>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm delete-prediction" title="Delete this prediction">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${predData.predictions.map((pred, idx) => `
+                        <div class="face-prediction mb-3">
+                            <h6 class="fw-bold mb-2">Face ${idx + 1}: ${pred.emotion}</h6>
+                            ${Object.entries(pred.probabilities || {}).map(([emotion, prob]) => `
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small>${emotion}</small>
+                                        <small class="text-primary">${(prob * 100).toFixed(1)}%</small>
+                                    </div>
+                                    <div class="probability-bar">
+                                        <div class="probability-fill" style="width: ${prob * 100}%"></div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `).join('')}
+                </div>`;            historyContainer.insertBefore(predictionEntry, historyContainer.firstChild);
+
+            // Add click handler for delete button
+            const deleteBtn = predictionEntry.querySelector('.delete-prediction');
+            deleteBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to delete this prediction?')) {
+                    deletePrediction(index);
+                }
+            });                // Draw the image with face rectangles on the canvas
+            const canvas = predictionEntry.querySelector('.history-canvas');
+            const img = new Image();
+            img.onload = () => {
+                const aspectRatio = img.height / img.width;
+                canvas.width = 150;
+                canvas.height = 150 * aspectRatio;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Draw face rectangles                const scale = canvas.width / img.width;
+                predData.predictions.forEach((pred, index) => {
+                    const rect = pred.face_rect;
+                    ctx.strokeStyle = '#4a90e2';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        rect.x * scale,
+                        rect.y * scale,
+                        rect.width * scale,
+                        rect.height * scale
+                    );
+
+                    // Add face number
+                    ctx.fillStyle = '#4a90e2';
+                    ctx.font = '12px Poppins';
+                    ctx.fillText(`${index + 1}`, rect.x * scale, (rect.y * scale) - 3);
+                });
+            };
+            img.src = predData.imageData;
+        }
+
+        function showFileName(input) {
+            const fileName = input.files[0]?.name;
+            document.getElementById('fileName').textContent = fileName || '';
+        }
+
+        // Handle form submission
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const file = formData.get('image');
+            
+            if (!file) {
+                alert('Please select an image first.');
+                return;
+            }
+
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+            submitBtn.disabled = true;
+
+            // Read the file and get its data URL
+            const reader = new FileReader();
+            reader.onload = function(event) {                const imageData = event.target.result;
+                
+                // Add the selected model to the form data
+                const selectedModel = document.getElementById('modelSelect').value;
+                formData.append('model', selectedModel);
+
+                fetch('/upload?model=' + selectedModel, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }                    // Show current prediction
+                    document.getElementById('currentPrediction').style.display = 'block';
+                    
+                    // Update face count
+                    document.getElementById('faceCount').textContent = data.results.length;
+
+                    // Draw image and face rectangles on preview canvas
+                    const canvas = document.getElementById('previewCanvas');
+                    const img = new Image();
+                    img.onload = () => {
+                        const aspectRatio = img.height / img.width;
+                        canvas.width = 500;
+                        canvas.height = 500 * aspectRatio;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);                        // Draw all face rectangles
+                        const scale = canvas.width / img.width;
+                        data.results.forEach((result, index) => {
+                            const rect = result.face_rect;
+                            ctx.strokeStyle = '#4a90e2';
+                            ctx.lineWidth = 3;
+                            ctx.strokeRect(
+                                rect.x * scale,
+                                rect.y * scale,
+                                rect.width * scale,
+                                rect.height * scale
+                            );
+
+                            // Add face number
+                            ctx.fillStyle = '#4a90e2';
+                            ctx.font = '16px Poppins';
+                            ctx.fillText(`Face ${index + 1}`, rect.x * scale, (rect.y * scale) - 5);
+                        });
+                    };
+                    img.src = imageData;
+
+                    // Update face results
+                    const facesResults = document.getElementById('facesResults');
+                    facesResults.innerHTML = data.results.map((result, index) => `
+                        <div class="face-result mb-4">
+                            <h6 class="fw-bold text-success mb-3">Face ${index + 1}: ${result.emotion}</h6>
+                            <div class="probability-list">
+                                ${Object.entries(result.probabilities)
+                                    .map(([emotion, prob]) => `
+                                        <div class="probability-item mb-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-medium">${emotion}</span>
+                                                <span class="text-primary fw-bold">${(prob * 100).toFixed(1)}%</span>
+                                            </div>
+                                            <div class="probability-bar">
+                                                <div class="probability-fill" style="width: ${prob * 100}%"></div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                            </div>
+                        </div>
+                    `).join('');                    // Add to history
+                    const predData = {
+                        predictions: data.results.map(result => ({
+                            emotion: result.emotion,
+                            probabilities: result.probabilities,
+                            face_rect: result.face_rect
+                        })),
+                        imageData: imageData,
+                        timestamp: formatTimestamp()
+                    };
+
+                    predictions.unshift(predData);
+                    predictions = predictions.slice(0, 10); // Keep only last 10 predictions
+                    savePredictions();
+                    loadPredictionHistory();
+                })
+                .catch(error => {
+                    alert(error.message || 'An error occurred. Please try again.');
+                })
+                .finally(() => {
+                    submitBtn.innerHTML = originalBtnText;
+                    submitBtn.disabled = false;
+                });
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        function updatePreview(file) {
+            const reader = new FileReader();
+            const previewContainer = document.getElementById('previewContainer');
+            const imagePreview = document.getElementById('imagePreview');
+
+            reader.readAsDataURL(file);
+            reader.onload = function() {
+                previewContainer.style.display = 'block';
+                imagePreview.src = reader.result;
+
+                // Update face count if available
+                if (window.faceData && window.faceData.length) {
+                    document.getElementById('faceCount').textContent = 
+                        `Detected ${window.faceData.length} face${window.faceData.length !== 1 ? 's' : ''}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

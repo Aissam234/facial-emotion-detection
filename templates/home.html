@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>    <meta charset="UTF-8">
+    <title>Emotion Detection - Home</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon/favicon.svg') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        /* Enhanced styles for feature lists */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .feature-list li {
+            margin: 4px 0; /* Reduced from 8px */
+            padding: 4px 15px; /* Reduced from 8px */
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            font-size: 1.1rem;
+        }
+
+        .feature-list li:hover {
+            transform: translateX(10px);
+        }
+
+        .feature-list .emoji {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 35px; /* Reduced from 40px */
+            height: 35px; /* Reduced from 40px */
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            margin-right: 12px; /* Reduced from 15px */
+            font-size: 1.2rem; /* Reduced from 1.4rem */
+        }
+
+        /* Different hover effects for each mode */
+        .upload-card .feature-list li:hover {
+            color: rgba(74, 144, 226, 1);
+        }
+
+        .webcam-card .feature-list li:hover {
+            color: rgba(46, 204, 113, 1);
+        }
+
+        /* Mode title colors */
+        .upload-card .card-title {
+            color: #4a90e2 !important; /* Blue color for Image Mode */
+        }
+
+        .webcam-card .card-title {
+            color: #2ecc71 !important; /* Green color for Webcam Mode */
+        }
+
+        .card-body {
+            padding: 1.5rem !important; /* Reduced from default padding */
+        }
+
+        .mode-icon {
+            margin-bottom: 0.5rem; /* Reduced from default */
+        }
+
+        .card-title {
+            margin-bottom: 0.5rem !important; /* Reduced from mb-3 */
+        }
+
+        .feature-list {
+            margin: 0.5rem 0 !important; /* Reduced from my-3 */
+        }
+
+        .feature-list li {
+            margin: 4px 0; /* Reduced from 8px */
+            padding: 4px 15px; /* Reduced from 8px */
+        }
+
+        .mt-4 {
+            margin-top: 1rem !important; /* Reduced from default mt-4 */
+        }
+
+        /* Model Selection Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            backdrop-filter: blur(10px);
+            margin: 10% auto;
+            padding: 2rem;
+            width: 90%;
+            max-width: 550px;
+            border-radius: 20px;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            transform: translateY(20px);
+            opacity: 0;
+            animation: modalSlideIn 0.3s ease forwards;
+        }
+
+        @keyframes modalSlideIn {
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .modal-header h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            background: linear-gradient(45deg, #4a90e2, #2ecc71);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+        }
+
+        .model-options {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .model-option {
+            background: rgba(255, 255, 255, 0.05);
+            margin: 0;
+            padding: 1.5rem;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .model-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, rgba(74,144,226,0.1), rgba(46,204,113,0.1));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .model-option:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .model-option:hover::before {
+            opacity: 1;
+        }
+
+        .model-option h4 {
+            font-size: 1.25rem;
+            margin: 0 0 0.5rem 0;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .model-option h4::before {
+            content: '🤖';
+            font-size: 1.5rem;
+        }
+
+        .model-option p {
+            margin: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .close {
+            position: absolute;
+            right: -10px;
+            top: -10px;
+            width: 30px;
+            height: 30px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .close:hover {
+            background: rgba(255,255,255,0.2);
+            transform: rotate(90deg);
+        }
+    </style>
+</head>
+<body>    <div class="container main-container animate-fade-in">        <div class="title-wrapper">
+            <h1 class="display-4 mb-0 mt-1 text-center fw-bold title-glow">
+                <span class="title-emoji" aria-label="drama masks emoji">🎭</span>
+                <span class="gradient-text" aria-label="Emotion Detection">
+                    <span class="Owners"></span>
+                </span>
+                <span class="title-emoji" aria-label="drama masks emoji">🎭</span>
+            </h1>
+        </div>
+        <div class="container main-container animate-fade-in">
+        
+        <div class="row justify-content-center g-4"><div class="col-md-5">
+                <div class="card1 mode-card upload-card h-100 title-emoji" onclick="window.location.href='/upload'">                    <div class="card-body d-flex flex-column justify-content-center align-items-center">                        <div class="mode-icon d-flex align-items-center justify-content-center gap-3">
+                            <span class="display-4">📸</span>
+                        </div><h3 class="card-title text-white fw-bold mb-3">Image Mode</h3>
+                        <ul class="feature-list text-white opacity-85 my-3">
+                            <li><span class="emoji">✨</span>Smart AI Detection</li>
+                            <li><span class="emoji">👥</span>Multiple Faces</li>
+                            <li><span class="emoji">📊</span>Detailed Results</li>
+                        </ul><div class="mt-4"><span class="btn btn-glass btn-glass-primary btn-lg">
+                                Analyze Photos <i class="fas fa-arrow-right ms-2"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>            <div class="col-md-5">
+                <div class="card mode-card webcam-card h-100 title-emoji" onclick="window.location.href='/webcam'">                    <div class="card-body d-flex flex-column justify-content-center align-items-center">                        <div class="mode-icon d-flex align-items-center justify-content-center gap-3">
+                            <span class="display-4">🎥</span>
+                        </div><h3 class="card-title text-white fw-bold mb-3">Webcam Mode</h3>
+                        <ul class="feature-list text-white opacity-85 my-3">
+                            <li><span class="emoji">⚡</span>Instant Analysis</li>
+                            <li><span class="emoji">🎯</span>Live Tracking</li>
+                            <li><span class="emoji">🔄</span>Real-time Updates</li>
+                        </ul><div class="mt-4"><span class="btn btn-glass btn-glass-success btn-lg">
+                                Start Live<i class="fas fa-arrow-right ms-2"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+          <div class="text-center mt-3">
+            <p class="footer-text">
+                <span class="gradient-text-subtle">Developed by Me</span>
+                <span>✨</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Model Selection Modal -->
+    <div id="modelModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div class="modal-header">
+                <h2 class="text-center mb-4">Select Model</h2>
+            </div>
+            <div class="model-options">
+                <div class="model-option" onclick="selectModel('v5', this.getAttribute('data-destination'))">
+                    <h4>Emotion Model V5</h4>
+                    <p>Latest version with improved accuracy</p>
+                </div>
+                <div class="model-option" onclick="selectModel('fer2013', this.getAttribute('data-destination'))">
+                    <h4>FER2013 Model</h4>
+                    <p>Trained on FER2013 dataset</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
+<script>
+    var typed = new Typed(".Owners",{
+        strings:["Emotion Detection","Deep Learning","Project"],
+        typeSpeed: 150,
+        backSpeed: 150,
+        loop: true
+    })
+
+    // Modal functionality
+    const modal = document.getElementById('modelModal');
+    const span = document.getElementsByClassName('close')[0];
+
+    function showModelSelection(destination) {
+        modal.style.display = 'block';
+        const options = document.getElementsByClassName('model-option');
+        for (let option of options) {
+            option.setAttribute('data-destination', destination);
+        }
+    }
+
+    span.onclick = function() {
+        modal.style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    function selectModel(model, destination) {
+        const url = destination + '?model=' + model;
+        window.location.href = url;
+        modal.style.display = 'none';
+    }
+
+    // Update card click handlers
+    document.querySelector('.upload-card').onclick = function() {
+        showModelSelection('/upload');
+    }
+    document.querySelector('.webcam-card').onclick = function() {
+        showModelSelection('/webcam');
+    }
+</script>
+</html>

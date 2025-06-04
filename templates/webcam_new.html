@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Emotion Detection - Webcam</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">    <style>
+        /* Model Selection Styles */
+        .model-selection .model-option {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        
+        .model-selection .model-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .model-selection .model-option.selected {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.1);
+        }
+        
+        .model-selection .model-option i {
+            font-size: 2rem;
+            color: #2ecc71;
+        }
+        
+        .model-selection .model-option h6 {
+            color: white;
+            margin: 0.5rem 0;
+        }
+        
+        .model-selection .model-option p {
+            color: rgba(255, 255, 255, 0.7);
+            margin: 0;
+        }
+
+        .row {
+            justify-content: center;
+        }
+
+        .col-lg-10 {
+            /* ...existing code... */
+        }
+
+        .card {
+            margin-bottom: 2rem;
+        }
+
+        /* Ensure webcam container maintains aspect ratio */
+        .webcam-container {
+            aspect-ratio: 16/9;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        /* Adjust layout for live camera, captured image, and results container */
+        .webcam-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+
+        .webcam-container,
+        .captured-image {
+            flex: 1 1 48%; /* Each takes 48% of the width */
+            margin-bottom: 20px;
+            margin-right: 10px; /* Add margin to the right */
+        }
+
+        .captured-image {
+            margin-right: 0; /* Remove margin for the last image */
+        }        #results {
+            width: 100%; /* Full width under the two images */
+            margin-top: 20px;
+        }
+
+        /* History entry styles */
+        .prediction-entry {
+            display: flex;
+            gap: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .prediction-image {
+            flex: 0 0 150px;
+        }
+
+        .history-canvas {
+            width: 150px;
+            border-radius: 4px;
+            background: #1a1a1a;
+        }
+
+        .prediction-details {
+            flex: 1;
+        }
+
+        .probability-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .probability-fill {
+            height: 100%;
+            background: #2ecc71;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="webcam-mode">
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <span class="title-emoji">🎭</span>
+                <span class="gradient-text">Emotion Detection</span>
+            </a>
+            <div>
+                <button id="captureBtn" class="btn btn-mode-primary btn-outline-success me-2">
+                    <i class="fas fa-camera me-2"></i>Capture Photo
+                </button>
+                <button class="btn btn-mode-primary btn-outline-success" onclick="window.location.href='/'">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Home
+                </button>
+            </div>
+        </div>
+    </nav>    <div class="container main-container_1">
+        <!-- Webcam and Results Section -->
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card p-4 mb-4 animate-fade-in">
+                    <div class="text-center mb-4">
+                        <div class="mode-icon">
+                            <i class="fas fa-video text-success"></i>
+                        </div>                        <h4 class="text-success fw-bold">Webcam Capture</h4>
+                        <p class="text-muted">Position your face in the center and click capture</p>
+            </div>
+            
+            <!-- Model Selection Section -->
+            <div class="model-selection mb-4">
+                <h5 class="text-success mb-3">Select Model</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="model-option" data-value="v5" onclick="selectModel(this)">
+                            <i class="fas fa-brain mb-2"></i>
+                            <h6>Emotion Model V5</h6>
+                            <p class="small opacity-75">Latest version with improved accuracy</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="model-option" data-value="fer2013" onclick="selectModel(this)">
+                            <i class="fas fa-microchip mb-2"></i>
+                            <h6>FER2013 Model</h6>
+                            <p class="small opacity-75">Trained on FER2013 dataset</p>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" id="modelSelect" name="model" value="v5">
+            </div>
+
+            <div class="webcam-row">
+                <div class="webcam-container mb-4">
+                    <video id="video" autoplay class="w-100 rounded-3 shadow-sm"></video>
+                </div>
+                <div class="captured-image">
+                    <canvas id="previewCanvas" class="w-100 rounded-3 shadow-sm"></canvas>
+                </div>
+            </div>
+            <div id="results" class="results-container" style="display: none;">
+                <h5 class="text-success mb-3">Analysis Results</h5>
+                <div id="emotionResults" class="emotion-results">
+                </div>
+            </div>
+        </div>        <!-- History Section -->
+        <div class="row justify-content-center mt-5">
+            <div class="col-lg-12">
+                <div class="card p-4 animate-fade-in">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-history text-white me-2"></i>
+                            <h5 class="fw-bold mb-0">Predictions History</h5>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" onclick="clearHistory()">
+                    <i class="fas fa-trash-alt me-1"></i>Clear History
+                </button>
+            </div>
+            <div id="history-container" class="history-entries">
+                <!-- History entries will be added here -->
+            </div>
+        </div>
+        <div class="text-center mt-3">
+            <p class="footer-text">
+                <span class="gradient-text-subtle">Developed by Me</span>
+                <span>✨</span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize predictions array from localStorage
+        let predictions = JSON.parse(localStorage.getItem('webcamPredictions') || '[]');
+
+        // Load existing predictions when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            startWebcam();
+            loadPredictionHistory();
+        });
+
+        // Helper function to get the relative path for static files
+        function getStaticPath(filename) {
+            return `/static/webcam_captures/${filename}`;
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all prediction history?')) {
+                predictions = [];
+                savePredictions();
+                loadPredictionHistory();
+            }
+        }
+
+        function savePredictions() {
+            localStorage.setItem('webcamPredictions', JSON.stringify(predictions));
+        }
+
+        function loadPredictionHistory() {
+            const historyContainer = document.getElementById('history-container');
+            historyContainer.innerHTML = '';
+            predictions.forEach((pred) => {
+                createPredictionEntry(pred);
+            });
+        }
+
+        function createPredictionEntry(predData) {
+            const historyContainer = document.getElementById('history-container');
+            const predictionEntry = document.createElement('div');
+            predictionEntry.className = 'prediction-entry animate-fade-in';
+            
+            predictionEntry.innerHTML = `
+                <div class="prediction-image">
+                    <canvas class="history-canvas"></canvas>
+                </div>
+                <div class="prediction-details">
+                    <div class="prediction-meta">
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                            <div>
+                                <h6 class="mb-0 text-success">${predData.faces.length} ${predData.faces.length === 1 ? 'face' : 'faces'} detected</h6>
+                                <span class="timestamp">${predData.timestamp}</span>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm delete-prediction" title="Delete this prediction">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="emotion-details mt-2">
+                        ${predData.faces.map((face, idx) => `
+                            <div class="mb-3">
+                                <h6 class="mb-2">Face ${idx + 1}: ${face.emotion}</h6>
+                                ${Object.entries(face.probabilities || {}).map(([emotion, prob]) => `
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small>${emotion}</small>
+                                            <small class="text-primary">${(prob * 100).toFixed(1)}%</small>
+                                        </div>
+                                        <div class="probability-bar">
+                                            <div class="probability-fill" style="width: ${prob * 100}%"></div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+
+            // Add click handler for delete button
+            const deleteBtn = predictionEntry.querySelector('.delete-prediction');
+            deleteBtn.addEventListener('click', () => {
+                const index = predictions.findIndex(p => p.timestamp === predData.timestamp);
+                if (index !== -1) {
+                    predictions.splice(index, 1);
+                    savePredictions();
+                    loadPredictionHistory();
+                }
+            });
+
+            historyContainer.insertBefore(predictionEntry, historyContainer.firstChild);            // Draw the image with face rectangles on the canvas
+            const canvas = predictionEntry.querySelector('.history-canvas');
+            const img = new Image();
+            img.onload = () => {
+                const aspectRatio = img.height / img.width;
+                canvas.width = 150;
+                canvas.height = 150 * aspectRatio;
+                const ctx = canvas.getContext('2d');
+                
+                // Draw the image
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                console.log('Image loaded successfully');
+                
+                // Draw face rectangles
+                predData.faces.forEach(face => {
+                    const rect = face.face_rect;
+                    const scale = canvas.width / img.width;
+                    ctx.strokeStyle = '#2ecc71';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        rect.x * scale,
+                        rect.y * scale,
+                        rect.width * scale,
+                        rect.height * scale
+                    );
+                });
+            };            img.onerror = () => {
+                console.error('Error loading image from path:', predData.imageData);
+                // Try loading the backup image if available
+                if (predData.originalImage) {
+                    console.log('Trying backup image...');
+                    img.src = predData.originalImage;
+                } else {
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Image not found', canvas.width/2, canvas.height/2);
+                }
+            };
+            img.src = predData.imageData;
+        }
+
+        function startWebcam() {
+            const video = document.getElementById('video');
+            if (!video.srcObject) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "user"
+                    } 
+                })
+                .then(stream => {
+                    video.srcObject = stream;
+                })
+                .catch(error => {
+                    console.error("Webcam access denied:", error);
+                    alert("Unable to access webcam. Please make sure you've granted camera permissions.");
+                });
+            }
+        }
+
+        function captureAndAnalyze() {
+            const video = document.getElementById('video');
+            const canvas = document.createElement('canvas');
+            const previewCanvas = document.getElementById('previewCanvas');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            const imageData = canvas.toDataURL('image/jpeg');
+            
+            // Show results container
+            document.getElementById('results').style.display = 'block';
+              // Get the selected model from the hidden input
+            const selectedModel = document.getElementById('modelSelect').value;
+            
+            // Send to server for analysis
+            fetch(`/predict_webcam?model=${selectedModel}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            })            .then(res => {
+                if (!res.ok) {
+                    return res.text().then(text => {
+                        throw new Error(`Server responded with ${res.status}: ${text}`);
+                    });
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data.results && data.results.length > 0) {
+                    // Draw the captured image and face rectangles on preview canvas
+                    const img = new Image();
+                    img.onload = () => {
+                        const aspectRatio = img.height / img.width;
+                        previewCanvas.width = 500;
+                        previewCanvas.height = 500 * aspectRatio;
+                        const pctx = previewCanvas.getContext('2d');
+                        
+                        // Draw the image
+                        pctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+                        
+                        // Draw face rectangles
+                        const scale = previewCanvas.width / img.width;                        data.results.forEach((face, index) => {
+                            const rect = face.face_rect;
+                            
+                            // Draw rectangle
+                            pctx.strokeStyle = '#2ecc71';
+                            pctx.lineWidth = 3;
+                            pctx.strokeRect(
+                                rect.x * scale,
+                                rect.y * scale,
+                                rect.width * scale,
+                                rect.height * scale
+                            );
+                            
+                            // Draw label background
+                            const label = `Face ${index + 1}`;
+                            pctx.font = '16px Poppins';
+                            const textMetrics = pctx.measureText(label);
+                            pctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                            pctx.fillRect(
+                                rect.x * scale,
+                                (rect.y * scale) - 25,
+                                textMetrics.width + 10,
+                                20
+                            );
+                            
+                            // Draw label text
+                            pctx.fillStyle = '#2ecc71';
+                            pctx.fillText(label, (rect.x * scale) + 5, (rect.y * scale) - 10);
+                        });
+                    };
+                    img.src = imageData;
+
+                    // Update emotion results
+                    const emotionResults = document.getElementById('emotionResults');
+                    let resultsHTML = `
+                        <div class="text-center mb-3">
+                            <h6 class="text-success">Detected ${data.results.length} Face(s)</h6>
+                        </div>`;
+                    
+                    data.results.forEach((face, index) => {
+                        resultsHTML += `
+                            <div class="card mb-3">
+                                <div class="card-body col-lg-11">
+                                    <h6 class="card-title">Face ${index + 1}: ${face.emotion}</h6>
+                                    ${Object.entries(face.probabilities || {}).map(([emotion, prob]) => `
+                                        <div class="mb-2">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small>${emotion}</small>
+                                                <small class="text-primary">${(prob * 100).toFixed(1)}%</small>
+                                            </div>
+                                            <div class="probability-bar">
+                                                <div class="probability-fill" style="width: ${prob * 100}%"></div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>`;
+                    });
+                    
+                    emotionResults.innerHTML = resultsHTML;                    // Save to history with server-saved image path
+                    const timestamp = new Date().toLocaleTimeString();
+                    const predData = {
+                        faces: data.results,
+                        imageData: data.image, // Use the server-saved image path
+                        timestamp: timestamp,
+                        originalImage: imageData // Keep the original image data as backup
+                    };
+
+                    predictions.unshift(predData);
+                    predictions = predictions.slice(0, 10); // Keep only last 10 predictions
+                    savePredictions();
+                    loadPredictionHistory();
+                } else {
+                    document.getElementById('emotionResults').innerHTML = `
+                        <div class="alert alert-warning">
+                            No faces detected in the image.
+                        </div>`;
+                }
+            })
+            .catch(error => {
+                console.error("Analysis error:", error);
+                document.getElementById('emotionResults').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Analysis failed. Please try again.
+                    </div>`;
+            });
+        }
+
+        // Handle model selection
+        function selectModel(element) {
+            // Remove selected class from all options
+            document.querySelectorAll('.model-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked option
+            element.classList.add('selected');
+            
+            // Update hidden input value
+            document.getElementById('modelSelect').value = element.dataset.value;
+        }
+
+        // Set initial model selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const modelParam = urlParams.get('model') || 'v5';
+            const selectedOption = document.querySelector(`.model-option[data-value="${modelParam}"]`);
+            if (selectedOption) {
+                selectModel(selectedOption);
+            }
+            
+            startWebcam();
+            loadPredictionHistory();
+        });
+
+        // Setup capture button
+        document.getElementById('captureBtn').addEventListener('click', captureAndAnalyze);
+    </script>
+</body>
+</html>

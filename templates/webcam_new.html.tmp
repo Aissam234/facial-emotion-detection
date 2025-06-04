@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Emotion Detection - Webcam</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="webcam-mode">
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-brain me-2"></i>
+                Emotion Detection
+            </a>
+            <div>
+                <button id="toggleLive" class="btn btn-mode-primary btn-outline-success me-2">
+                    <i class="fas fa-play me-2"></i>Start Live Analysis
+                </button>
+                <button class="btn btn-mode-primary btn-outline-success" onclick="window.location.href='/'">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Home
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container main-container">
+        <div class="card p-4 mb-5 animate-fade-in">
+            <div class="text-center mb-4">
+                <div class="mode-icon">
+                    <i class="fas fa-video text-success"></i>
+                </div>
+                <h4 class="text-success fw-bold">Live Emotion Detection</h4>
+                <p class="text-muted">Position your face in the center for best results</p>
+            </div>
+
+            <div class="split-container">
+                <!-- Left side: Live preview and current prediction -->
+                <div class="preview-section">
+                    <div class="webcam-container mb-4">
+                        <video id="video" autoplay class="w-100 rounded-3 shadow-sm"></video>
+                        <canvas id="overlay" class="webcam-overlay"></canvas>
+                        <div class="webcam-overlay">
+                            <div id="face-guide" class="position-relative"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="webcam-emotion" class="emotion-result mt-3" style="display:none;">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin me-2"></i>
+                            <span class="emotion-text">Analyzing...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right side: Predictions history -->
+                <div class="history-section">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-success mb-0">Predictions History</h5>
+                        <button class="btn btn-outline-danger btn-sm" onclick="clearHistory()">
+                            <i class="fas fa-trash-alt me-1"></i>Clear History
+                        </button>
+                    </div>
+                    <div id="history-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isLiveAnalysisActive = false;
+        let analysisInterval = null;
+        let lastAnalysisTime = 0;
+        const ANALYSIS_INTERVAL = 500; // Analyze every 500ms
+        
+        // Initialize predictions array from localStorage
+        let predictions = JSON.parse(localStorage.getItem('webcamPredictions') || '[]');
+
+        // Load existing predictions when page loads
+        window.onload = function() {
+            startWebcam();
+            animateFaceGuide();
+            loadPredictionHistory();
+            setupLiveAnalysis();
+        };
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all prediction history?')) {
+                predictions = [];
+                savePredictions();
+                loadPredictionHistory();
+            }
+        }
+
+        function savePredictions() {
+            localStorage.setItem('webcamPredictions', JSON.stringify(predictions));
+        }
+
+        function loadPredictionHistory() {
+            const historyContainer = document.getElementById('history-container');
+            historyContainer.innerHTML = '';
+            predictions.forEach((pred) => {
+                createPredictionEntry(pred);
+            });
+        }
+
+        function createPredictionEntry(predData) {
+            const historyContainer = document.getElementById('history-container');
+            
+            const predictionEntry = document.createElement('div');
+            predictionEntry.className = 'prediction-entry animate-fade-in';
+            
+            predictionEntry.innerHTML = `
+                <div class="prediction-image">
+                    <canvas class="history-canvas"></canvas>
+                </div>
+                <div class="prediction-details">
+                    <div class="prediction-meta">
+                        <h6 class="mb-0 text-success">${predData.predictions.length} ${predData.predictions.length === 1 ? 'face' : 'faces'} detected</h6>
+                        <span class="timestamp">${predData.timestamp}</span>
+                    </div>
+                    ${predData.predictions.map((pred, idx) => `
+                        <div class="face-prediction mb-3">
+                            <h6 class="fw-bold mb-2">Face ${idx + 1}: ${pred.emotion}</h6>
+                            ${Object.entries(pred.probabilities || {}).map(([emotion, prob]) => `
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small>${emotion}</small>
+                                        <small class="text-primary">${(prob * 100).toFixed(1)}%</small>
+                                    </div>
+                                    <div class="probability-bar">
+                                        <div class="probability-fill" style="width: ${prob * 100}%"></div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `).join('')}
+                </div>`;
+            
+            historyContainer.insertBefore(predictionEntry, historyContainer.firstChild);
+
+            // Draw the image with face rectangles
+            const canvas = predictionEntry.querySelector('.history-canvas');
+            const img = new Image();
+            img.onload = () => {
+                const aspectRatio = img.height / img.width;
+                canvas.width = 150;
+                canvas.height = 150 * aspectRatio;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Draw face rectangles
+                const scale = canvas.width / img.width;
+                predData.predictions.forEach((pred, index) => {
+                    const rect = pred.face_rect;
+                    ctx.strokeStyle = '#2ecc71';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        rect.x * scale,
+                        rect.y * scale,
+                        rect.width * scale,
+                        rect.height * scale
+                    );
+
+                    // Add face number
+                    ctx.fillStyle = '#2ecc71';
+                    ctx.font = '12px Poppins';
+                    ctx.fillText(`${index + 1}`, rect.x * scale, (rect.y * scale) - 3);
+                });
+            };
+            img.src = predData.imageData;
+        }
+
+        function animateFaceGuide() {
+            const guide = document.getElementById('face-guide');
+            guide.innerHTML = `
+                <svg width="200" height="200" viewBox="0 0 200 200" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">
+                    <rect x="10" y="10" width="180" height="180" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" rx="90" ry="90"/>
+                </svg>`;
+        }
+
+        function startWebcam() {
+            const video = document.getElementById('video');
+            if (!video.srcObject) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "user"
+                    } 
+                })
+                .then(stream => {
+                    video.srcObject = stream;
+                    setupOverlay();
+                })
+                .catch(error => {
+                    console.error("Webcam access denied:", error);
+                    alert("Unable to access webcam. Please make sure you've granted camera permissions.");
+                });
+            }
+        }
+
+        function setupOverlay() {
+            const video = document.getElementById('video');
+            const overlay = document.getElementById('overlay');
+            
+            video.addEventListener('loadedmetadata', () => {
+                overlay.width = video.videoWidth;
+                overlay.height = video.videoHeight;
+            });
+        }
+
+        function setupLiveAnalysis() {
+            const toggleBtn = document.getElementById('toggleLive');
+            const emotionDisplay = document.getElementById('webcam-emotion');
+
+            toggleBtn.addEventListener('click', () => {
+                isLiveAnalysisActive = !isLiveAnalysisActive;
+                
+                if (isLiveAnalysisActive) {
+                    toggleBtn.innerHTML = '<i class="fas fa-stop me-2"></i>Stop Live Analysis';
+                    toggleBtn.classList.replace('btn-outline-success', 'btn-outline-danger');
+                    emotionDisplay.style.display = 'block';
+                    startLiveAnalysis();
+                } else {
+                    toggleBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Live Analysis';
+                    toggleBtn.classList.replace('btn-outline-danger', 'btn-outline-success');
+                    emotionDisplay.style.display = 'none';
+                    stopLiveAnalysis();
+                }
+            });
+        }
+
+        function startLiveAnalysis() {
+            if (analysisInterval) return;
+            analysisInterval = setInterval(analyzeCurrentFrame, ANALYSIS_INTERVAL);
+        }
+
+        function stopLiveAnalysis() {
+            if (analysisInterval) {
+                clearInterval(analysisInterval);
+                analysisInterval = null;
+            }
+            
+            // Clear overlay
+            const overlay = document.getElementById('overlay');
+            const ctx = overlay.getContext('2d');
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+            // Clear emotion display
+            const webcamEmotion = document.getElementById('webcam-emotion');
+            webcamEmotion.style.display = 'none';
+        }
+
+        function formatTimestamp() {
+            const now = new Date();
+            return now.toLocaleTimeString();
+        }
+
+        function analyzeCurrentFrame() {
+            const now = Date.now();
+            if (now - lastAnalysisTime < ANALYSIS_INTERVAL) return;
+            lastAnalysisTime = now;
+
+            const video = document.getElementById('video');
+            const overlay = document.getElementById('overlay');
+            const ctx = overlay.getContext('2d');
+            const webcamEmotion = document.getElementById('webcam-emotion');
+            
+            // Clear previous drawings
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            
+            // Create a temporary canvas to get the image data
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0);
+
+            const imageData = tempCanvas.toDataURL('image/jpeg');
+
+            fetch('/predict_webcam', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.faces && data.faces.length > 0) {
+                    // Draw face rectangles and emotions on the overlay
+                    data.faces.forEach((face, index) => {
+                        const rect = face.face_rect;
+                        
+                        // Draw rectangle
+                        ctx.strokeStyle = '#2ecc71';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(
+                            rect.x,
+                            rect.y,
+                            rect.width,
+                            rect.height
+                        );
+
+                        // Add semi-transparent background for text
+                        const text = face.emotion;
+                        const textX = rect.x;
+                        const textY = rect.y - 10;
+                        
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                        ctx.font = '16px Poppins';
+                        const textWidth = ctx.measureText(text).width;
+                        ctx.fillRect(textX - 2, textY - 16, textWidth + 4, 20);
+
+                        // Draw text
+                        ctx.fillStyle = '#2ecc71';
+                        ctx.fillText(text, textX, textY);
+                    });
+
+                    // Update emotion display with all detected faces
+                    webcamEmotion.innerHTML = `
+                        <div class="emotion-result animate-fade-in">
+                            <div class="row justify-content-center">
+                                ${data.faces.map((face, index) => `
+                                    <div class="col-md-4 mb-3">
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <h6 class="card-title text-success">Face ${index + 1}</h6>
+                                                <p class="mb-2">${face.emotion}</p>
+                                                ${Object.entries(face.probabilities || {}).map(([emotion, prob]) => `
+                                                    <div class="mb-1">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <small>${emotion}</small>
+                                                            <small class="text-primary">${(prob * 100).toFixed(1)}%</small>
+                                                        </div>
+                                                        <div class="probability-bar">
+                                                            <div class="probability-fill" style="width: ${prob * 100}%"></div>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>`;
+
+                    // Save to history occasionally (every 3 seconds)
+                    if (predictions.length === 0 || now - new Date(predictions[0].timestamp).getTime() > 3000) {
+                        const predData = {
+                            predictions: data.faces.map(face => ({
+                                emotion: face.emotion,
+                                probabilities: face.probabilities,
+                                face_rect: face.face_rect
+                            })),
+                            imageData: imageData,
+                            timestamp: formatTimestamp()
+                        };
+
+                        predictions.unshift(predData);
+                        predictions = predictions.slice(0, 10); // Keep only last 10 predictions
+                        savePredictions();
+                        loadPredictionHistory();
+                    }
+                } else {
+                    webcamEmotion.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-face-meh me-2"></i>
+                            No faces detected
+                        </div>`;
+                }
+            })
+            .catch(error => {
+                console.error("Prediction error:", error);
+                webcamEmotion.innerHTML = `
+                    <div class="text-danger text-center">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Analysis failed. Please try again.
+                    </div>`;
+            });
+        }
+    </script>
+</body>
+</html>
